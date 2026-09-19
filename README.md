@@ -1,6 +1,18 @@
-# DevOps Technical Challenge 2
+# Tech Challenge 2 V2 — GitOps & Observability
 
-## Project Overview
+This project builds upon the original Tech Challenge 2 implementation by modernizing the CI/CD and observability architecture while retaining the existing AWS EKS infrastructure and containerized Flask application.
+
+Version 1 implemented a Jenkins-based CI/CD pipeline for building, pushing, and deploying the application to Amazon EKS. Version 2 evolves the architecture by introducing GitHub Actions for continuous integration, Argo CD for continuous delivery, GitOps for Kubernetes deployment management, and Prometheus and Grafana for monitoring and visualization.
+
+## V2 Technologies
+
+- **GitHub Actions** — Continuous Integration (CI)
+- **Argo CD** — Continuous Delivery (CD)
+- **GitOps** — Git-based Kubernetes desired-state management
+- **Prometheus** — Metrics collection and monitoring
+- **Grafana** — Metrics visualization and dashboards
+
+## V1 Project Overview
 
 This project demonstrates an end-to-end DevOps deployment of a containerized Python Flask application to Amazon EKS.
 
