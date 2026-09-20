@@ -23,5 +23,5 @@ eks_cluster_name = "tech-challenge-2-eks"
 node_instance_type = "t3.small"
 
 node_min_size     = 1
-node_desired_size = 1
+node_desired_size = 2
 node_max_size     = 4
