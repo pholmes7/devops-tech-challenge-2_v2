@@ -117,7 +117,7 @@ httpRoute:
 
 resources:
   requests:
-    cpu: "30m"
+    cpu: "25m"
     memory: "64Mi"
   limits:
     cpu: "250m"
