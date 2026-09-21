@@ -1,189 +1,144 @@
-# Tech Challenge 2 V2 — GitOps & Observability
+# Tech Challenge 2 V2 — GitOps, CI/CD & Observability
 
-This project builds upon the original Tech Challenge 2 implementation by modernizing the CI/CD and observability architecture while retaining the existing AWS EKS infrastructure and containerized Flask application.
+## Project Overview
 
-Version 1 implemented a Jenkins-based CI/CD pipeline for building, pushing, and deploying the application to Amazon EKS. Version 2 evolves the architecture by introducing GitHub Actions for continuous integration, Argo CD for continuous delivery, GitOps for Kubernetes deployment management, and Prometheus and Grafana for monitoring and visualization.
+Tech Challenge 2 V2 is an evolution of my original AWS EKS DevOps project.
 
-## V2 Technologies
+V1 used Jenkins to build, push, and deploy a containerized Flask application to Amazon EKS. V2 modernizes the architecture by introducing GitHub Actions for Continuous Integration, Argo CD for Continuous Delivery, GitOps for Kubernetes deployment management, and Prometheus/Grafana for observability.
 
-- **GitHub Actions** — Continuous Integration (CI)
-- **Argo CD** — Continuous Delivery (CD)
-- **GitOps** — Git-based Kubernetes desired-state management
-- **Prometheus** — Metrics collection and monitoring
-- **Grafana** — Metrics visualization and dashboards
-
-## V1 Project Overview
-
-This project demonstrates an end-to-end DevOps deployment of a containerized Python Flask application to Amazon EKS.
-
-The environment uses Terraform for Infrastructure as Code, Docker and Amazon ECR for containerization and image storage, Kubernetes and Helm for application deployment, an AWS Application Load Balancer for public access, HPA and Cluster Autoscaler for scaling, and Jenkins for CI/CD automation.
-
-The deployed application displays:
-
-**Hello, World! CI/CD Deployment Successful!**
+The project demonstrates a production-style workflow combining Infrastructure as Code, containers, Kubernetes, CI/CD, GitOps, autoscaling, monitoring, and AWS cloud infrastructure.
 
 ---
 
 ## Architecture
 
-![Architecture Diagram](images/architecture-diagram.png)
+### V1
 
 ```text
 GitHub
    ↓
-Jenkins Pipeline
+Jenkins
    ↓
-Docker Build
+Docker
    ↓
 Amazon ECR
    ↓
-Amazon EKS
+Helm / kubectl
    ↓
-Helm / Kubernetes
+Amazon EKS
    ↓
 Application Load Balancer
    ↓
 Flask Application
 ```
 
-The application also uses two levels of autoscaling:
-
-- **Horizontal Pod Autoscaler (HPA)** scales application pods based on CPU or memory utilization.
-- **Cluster Autoscaler** scales the EKS worker node group based on workload demand.
-
----
-
-## Technologies Used
-
-- Python / Flask
-- Docker
-- GitHub
-- Jenkins
-- Terraform
-- Amazon ECR
-- Amazon EKS
-- Kubernetes
-- Helm
-- AWS Application Load Balancer
-- Metrics Server
-- Horizontal Pod Autoscaler
-- Cluster Autoscaler
-- Siege
-
----
-
-## Application
-
-The project uses a simple Python Flask application located in the `app` directory.
-
-### Run Locally
-
-Install the application dependencies:
-
-```bash
-pip install -r app/requirements.txt
-```
-
-Start the application:
-
-```bash
-python app/app.py
-```
-
-Access the application at:
+### V2
 
 ```text
-http://localhost:5000
+Developer
+   ↓
+GitHub
+   ↓
+GitHub Actions
+   ↓
+Docker Build
+   ↓
+Amazon ECR
+   ↓
+Git Desired State
+   ↓
+Argo CD
+   ↓
+Helm / Kubernetes
+   ↓
+Amazon EKS
+   ↓
+Application Load Balancer
+   ↓
+Flask Application
 ```
+
+### Observability
+
+```text
+Amazon EKS / Kubernetes
+          ↓
+      Prometheus
+          ↓
+        Grafana
+```
+
+Terraform provisions and manages the underlying AWS infrastructure.
 
 ---
 
-## Docker
+## V1 to V2 Evolution
 
-The Flask application is containerized using Docker.
+| Area | V1 | V2 |
+|---|---|---|
+| CI | Jenkins | GitHub Actions |
+| CD | Jenkins + Helm | Argo CD |
+| Deployment Model | Pipeline-driven | GitOps |
+| Image Versioning | Jenkins Build Number | Git Commit SHA |
+| AWS Authentication | Jenkins EC2 IAM Role | GitHub OIDC + IAM |
+| Monitoring | Kubernetes Metrics | Prometheus + Grafana |
+| Infrastructure | Terraform | Terraform |
 
-Build the Docker image:
+The main architectural change in V2 is separating CI from CD. GitHub Actions builds and publishes application images, while Argo CD continuously reconciles Kubernetes with the desired state stored in Git.
 
-```bash
-docker build -t tech-challenge-2-app ./app
-```
+---
 
-Run the container locally:
+## Technology Stack
 
-```bash
-docker run -d --name tech-challenge-2-container -p 5000:5000 tech-challenge-2-app
-```
-
-The production Docker images are stored in Amazon ECR and deployed to Amazon EKS.
+- AWS — EKS, ECR, EC2, VPC, IAM, ALB, EBS
+- Terraform — Infrastructure as Code
+- Docker — Application containerization
+- Kubernetes — Container orchestration
+- Helm — Kubernetes application packaging
+- GitHub Actions — Continuous Integration
+- Argo CD — Continuous Delivery
+- GitOps — Desired-state deployment management
+- Prometheus — Metrics collection
+- Grafana — Monitoring dashboards
+- Metrics Server — HPA metrics
+- Siege — Load testing
+- Python / Flask — Application
 
 ---
 
 ## Infrastructure as Code
 
-Terraform provisions the AWS infrastructure required for the application.
-
-### Infrastructure Provisioned
+Terraform provisions the AWS infrastructure, including:
 
 - Custom VPC
-- Two public subnets
-- Two private subnets
-- Internet Gateway
-- NAT Gateway
-- Public and private route tables
+- Public and private subnets
+- Internet and NAT gateways
 - Amazon ECR repository
 - Amazon EKS cluster
-- EKS managed node group
+- Managed EKS node group
 - IAM roles and policies
-- Jenkins EC2 server
-- IAM/IRSA resources for Kubernetes controllers
+- GitHub Actions OIDC/IAM integration
+- AWS Load Balancer Controller IAM
+- Cluster Autoscaler IAM
+- EBS CSI Driver IAM
 
-The EKS worker nodes run in private subnets while public subnets support internet-facing resources such as the Application Load Balancer.
-
-### EKS Node Configuration
-
-- Instance type: `t3.small`
-- Minimum nodes: `1`
-- Desired nodes: `1`
-- Maximum nodes: `4`
-
-### Deploy Infrastructure
-
-```bash
-cd terraform
-terraform init
-terraform fmt
-terraform validate
-terraform plan
-terraform apply
-```
-
-Configure kubectl after the EKS cluster is created:
-
-```bash
-aws eks update-kubeconfig --region us-east-2 --name tech-challenge-2-eks
-```
-
-Verify the cluster:
-
-```bash
-kubectl get nodes
-```
+EKS worker nodes run in private subnets while the Application Load Balancer provides public access to the Flask application.
 
 ---
 
-## Kubernetes and Helm
+## Kubernetes & Helm
 
-The application is deployed to Amazon EKS using Kubernetes and packaged using Helm.
+The Flask application is deployed to Amazon EKS using Kubernetes and Helm.
 
 The deployment includes:
 
 - Kubernetes Deployment
 - ClusterIP Service
+- ALB Ingress
 - Readiness and liveness probes
-- CPU and memory resource requests and limits
+- CPU and memory requests/limits
 - Horizontal Pod Autoscaler
 - Topology spread constraints
-- Kubernetes Ingress
 
 Application traffic follows:
 
@@ -194,221 +149,238 @@ AWS Application Load Balancer
    ↓
 Kubernetes Ingress
    ↓
-ClusterIP Service :80
+ClusterIP Service
    ↓
-Flask Pods :5000
+Flask Pods
 ```
-
-The AWS Load Balancer Controller monitors the Kubernetes Ingress and dynamically provisions the internet-facing Application Load Balancer.
-
-Helm provides reusable Kubernetes templates and is also used by the Jenkins pipeline to deploy updated application versions.
 
 ---
 
-## Kubernetes Self-Healing
+## GitHub Actions CI
 
-Kubernetes self-healing was validated by manually deleting a running application pod.
+GitHub Actions automatically triggers when application code changes.
 
-Because the Deployment maintains a desired replica count, Kubernetes automatically detected the missing pod and created a replacement.
+The CI workflow:
+
+1. Checks out the repository.
+2. Authenticates to AWS using OIDC.
+3. Builds the Flask Docker image.
+4. Tags the image using the Git commit SHA.
+5. Pushes the image to Amazon ECR.
+6. Updates the Helm image tag in Git.
+7. Commits the new desired state.
+
+Using Git commit SHAs provides immutable image versioning and traceability between application code, ECR images, Git, and EKS.
+
+---
+
+## GitOps & Argo CD
+
+Argo CD manages Continuous Delivery using GitOps.
+
+Git is treated as the source of truth for the Kubernetes application's desired state.
 
 ```text
-Running Pod
-    ↓
-Pod Deleted
-    ↓
-Desired-State Mismatch Detected
-    ↓
-Replacement Pod Created
-    ↓
-Application Restored
+Git Desired State
+       ↓
+    Argo CD
+       ↓
+     Helm
+       ↓
+ Kubernetes / EKS
 ```
 
-This demonstrated Kubernetes' ability to maintain the desired application state without manual intervention.
+Argo CD was configured with:
+
+- Automatic synchronization
+- Self-healing
+- Helm-based deployments
+- Continuous Git reconciliation
+
+Both Git-based application updates and deliberate Kubernetes drift were tested to validate synchronization and self-healing.
+
+---
+
+## Monitoring & Persistent Storage
+
+Prometheus and Grafana provide observability for the EKS environment.
+
+Prometheus collects Kubernetes, node, and workload metrics. Grafana provides dashboards for visualizing cluster and application behavior.
+
+Persistent storage for monitoring workloads is provided through the AWS EBS CSI Driver and Kubernetes PersistentVolumes/PersistentVolumeClaims.
 
 ---
 
 ## Autoscaling
 
-The EKS environment supports both application-level and infrastructure-level autoscaling.
+The environment uses two levels of autoscaling.
 
 ### Horizontal Pod Autoscaler
 
-Metrics Server provides CPU and memory utilization metrics to Kubernetes.
+The Flask application can scale between:
 
-The application HPA is configured with:
-
-- Minimum pods: `1`
-- Maximum pods: `12`
+- Minimum replicas: `1`
+- Maximum replicas: `12`
 - CPU target: `50%`
 - Memory target: `50%`
 
-Topology spread constraints help distribute application replicas across available worker nodes.
-
 ### Cluster Autoscaler
 
-Cluster Autoscaler manages the EKS managed node group.
+Cluster Autoscaler dynamically adjusts EKS worker capacity when pods cannot be scheduled.
 
-The node group can scale between:
+The node group supports up to `5` worker nodes using `t3.small` instances.
 
 ```text
-1 → 4 worker nodes
+Application Load Increases
+        ↓
+HPA Creates More Pods
+        ↓
+Scheduler Places Pods
+        ↓
+Additional Capacity Required
+        ↓
+Cluster Autoscaler Adds Nodes
 ```
-
-A dedicated IAM role using IAM Roles for Service Accounts (IRSA) provides Cluster Autoscaler with the AWS permissions required to manage the underlying Auto Scaling Group.
 
 ---
 
 ## Load Testing
 
-Siege was used to generate traffic against the application through the public AWS Application Load Balancer.
+Siege was used to generate sustained traffic through the public Application Load Balancer.
 
-The test used 25 concurrent users for 2 minutes:
+Final load test:
 
-```bash
-siege -c 25 -t 2M http://<ALB-DNS-NAME>
-```
+- 50 concurrent users
+- 5-minute duration
+- 45,878 successful transactions
+- 0 failed transactions
+- 100% availability
+- 152.63 transactions/second
 
-During the test:
+During testing:
 
-- HPA scaled the application from `1` to `12` pods.
-- Cluster Autoscaler scaled the EKS environment from `1` to `4` worker nodes.
-- At peak load, 12 application pods were distributed across 4 worker nodes.
-- Kubernetes began scaling the environment down after the load test ended.
-
-This validated both pod-level and infrastructure-level autoscaling.
-
----
-
-## Jenkins Server
-
-A Jenkins server was provisioned on an AWS EC2 `t3.medium` instance using Terraform.
-
-The Jenkins server includes:
-
-- Jenkins
-- Java
-- Git
-- Docker
-- AWS CLI
-- kubectl
-- Helm
-
-The Jenkins user was configured with Docker access and the tools required to manage the deployment.
-
-### AWS Authentication
-
-An EC2 IAM role and instance profile allow Jenkins to interact with AWS without storing long-lived AWS access keys on the server.
-
-Jenkins was granted the required access to:
-
-- Amazon ECR
-- Amazon EKS
-- Kubernetes
-
-EKS Access Entries allow the Jenkins IAM role to authenticate with the Kubernetes cluster.
-
-A GitHub Personal Access Token stored in Jenkins Credentials provides access to the private GitHub repository.
+- HPA scaled the Flask application from `1` to `12` pods.
+- Cluster Autoscaler increased EKS worker capacity.
+- Kubernetes distributed application replicas across worker nodes.
+- The environment automatically scaled down after demand decreased.
 
 ---
 
-## Jenkins CI/CD Pipeline
+## End-to-End CI/CD Validation
 
-The CI/CD workflow is defined in the root `Jenkinsfile`.
-
-The pipeline automates:
+The completed V2 pipeline was validated using a visible Flask application change.
 
 ```text
-GitHub Checkout
-      ↓
+Code Push
+   ↓
+GitHub Actions
+   ↓
 Docker Build
-      ↓
-ECR Authentication
-      ↓
-Docker Image Tag
-      ↓
-ECR Push
-      ↓
-EKS Configuration
-      ↓
-Helm Deployment
-      ↓
-kubectl Rollout Verification
+   ↓
+SHA-Tagged Image
+   ↓
+Amazon ECR
+   ↓
+Git Desired State Updated
+   ↓
+Argo CD Auto-Sync
+   ↓
+Amazon EKS
+   ↓
+Application Load Balancer
+   ↓
+Updated Flask Application
 ```
 
-Each Jenkins build uses the Jenkins build number as a unique Docker image tag. This ensures each pipeline execution deploys a distinct application version rather than relying solely on the `latest` tag.
-
-### CI/CD Validation
-
-The complete pipeline was validated by making a visible change to the Flask application and pushing the updated source code to GitHub.
-
-Jenkins successfully:
-
-1. Checked out the updated source code from the private GitHub repository.
-2. Built a new Docker image.
-3. Tagged the image with the Jenkins build number.
-4. Authenticated with Amazon ECR.
-5. Pushed the new image to ECR.
-6. Connected to the EKS cluster.
-7. Updated the application using Helm.
-8. Verified the Kubernetes rollout using kubectl.
-
-The updated application was then accessed through the Application Load Balancer and returned:
-
-**Hello, World! CI/CD Deployment Successful!**
+The final deployment successfully ran the SHA-versioned image in EKS, reached Healthy/Synced status in Argo CD, and served the updated Flask application through the public ALB.
 
 ---
 
-## Key Validation Results
+## Troubleshooting Highlights
 
-The completed project successfully demonstrated:
+### GitHub Actions OIDC Authentication
 
-- Docker containerization
-- Infrastructure provisioning with Terraform
-- Amazon EKS deployment
-- Kubernetes self-healing
-- Helm-based application management
-- Public Application Load Balancer routing
-- CPU and memory-based HPA scaling
-- EKS worker node autoscaling
-- Siege load testing
-- Jenkins access to a private GitHub repository
-- Secure Jenkins AWS authentication using an EC2 IAM role
-- Automated Docker builds
-- Automated ECR image pushes
-- Automated Helm deployments
-- Kubernetes rollout verification
-- Successful end-to-end CI/CD deployment
+GitHub Actions initially failed to assume its AWS IAM role because the repository identity in the OIDC token did not match the IAM trust policy.
+
+The actual OIDC claims were inspected and the IAM trust relationship was updated to match the repository identity.
+
+### Cluster Autoscaler IRSA
+
+Cluster Autoscaler initially failed AWS authentication because its Kubernetes ServiceAccount did not match the identity configured in the IAM trust relationship.
+
+The ServiceAccount and IRSA configuration were aligned to restore AWS access.
+
+### Kubernetes Scheduling Capacity
+
+During a GitOps rolling deployment, a new Flask pod remained Pending.
+
+Investigation showed:
+
+- Two nodes had reached their pod capacity.
+- Two nodes were restricted by topology spread constraints.
+- Cluster Autoscaler had reached the configured four-node maximum.
+
+The node-group maximum was increased to five, allowing Cluster Autoscaler to add capacity. Kubernetes successfully scheduled the new SHA-versioned Flask pods and completed the rolling deployment.
+
+### Prometheus Persistent Storage
+
+Prometheus initially remained Pending because persistent EBS storage was unavailable.
+
+The AWS EBS CSI Driver, IAM role, and persistent storage configuration were added, allowing Kubernetes to dynamically provision EBS-backed storage.
+
+---
+
+## Key Results
+
+The completed project demonstrates:
+
+- Terraform-managed AWS infrastructure
+- Containerized Flask application
+- Production-style Amazon EKS deployment
+- GitHub Actions CI
+- Secure AWS authentication using OIDC
+- Immutable SHA-based Docker image versioning
+- GitOps-based Continuous Delivery
+- Argo CD Auto-Sync and Self-Healing
+- Kubernetes HPA
+- EKS Cluster Autoscaler
+- Prometheus monitoring
+- Grafana dashboards
+- EBS-backed persistent storage
+- ALB-based public application access
+- Successful load testing with 100% availability
+- End-to-end automated CI/CD deployment
 
 ---
 
 ## Repository Structure
 
 ```text
-devops-tech-challenge-2/
+devops-tech-challenge-2-v2/
+├── .github/
+│   └── workflows/
 ├── app/
 │   ├── app.py
-│   ├── requirements.txt
 │   ├── Dockerfile
-│   └── .dockerignore
+│   └── requirements.txt
 ├── helm/
 │   └── tech-challenge-2/
 ├── images/
-│   └── architecture-diagram.png
 ├── kubernetes/
-│   ├── deployment.yaml
-│   └── service.yaml
 ├── terraform/
 ├── Jenkinsfile
 ├── .gitignore
 └── README.md
 ```
 
+The `Jenkinsfile` is retained as a reference to the original V1 implementation and demonstrates the project's evolution from Jenkins-based CI/CD to GitHub Actions and Argo CD.
+
 ---
 
 ## Project Outcome
 
-The project demonstrates a complete DevOps workflow in which AWS infrastructure is provisioned through Terraform, applications are containerized with Docker, workloads are orchestrated and automatically scaled through Kubernetes on Amazon EKS, and application updates are deployed through a Jenkins CI/CD pipeline.
+Tech Challenge 2 V2 demonstrates the evolution of a traditional CI/CD pipeline into a GitOps-based cloud deployment architecture.
 
-The final environment successfully demonstrated:
+The final environment integrates Terraform, AWS, Docker, Kubernetes, Helm, GitHub Actions, Argo CD, Prometheus, Grafana, autoscaling, persistent storage, and load testing into a single end-to-end DevOps platform.
 
-**Code → Build → Container Registry → Kubernetes → Autoscaling → CI/CD → Production Deployment**
+The project provided hands-on experience designing, automating, monitoring, scaling, and troubleshooting a Kubernetes-based application running on AWS.
