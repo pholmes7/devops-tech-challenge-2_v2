@@ -31,7 +31,7 @@ resource "aws_iam_role" "github_actions" {
           }
 
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:pholmes7/devops-tech-challenge-2_v2:ref:refs/heads/main"
+            "token.actions.githubusercontent.com:sub" = "repo:pholmes7@54830028/devops-tech-challenge-2_v2@1376651303:ref:refs/heads/main"
           }
         }
       }
