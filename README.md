@@ -12,6 +12,8 @@ The project demonstrates a production-style workflow combining Infrastructure as
 
 ## Architecture
 
+![Tech Challenge 2 V2 Architecture](images/tech-challenge-2-v2-architecture.png)
+
 ### V1
 
 ```text
@@ -90,19 +92,19 @@ The main architectural change in V2 is separating CI from CD. GitHub Actions bui
 
 ## Technology Stack
 
-- AWS — EKS, ECR, EC2, VPC, IAM, ALB, EBS
-- Terraform — Infrastructure as Code
-- Docker — Application containerization
-- Kubernetes — Container orchestration
-- Helm — Kubernetes application packaging
-- GitHub Actions — Continuous Integration
-- Argo CD — Continuous Delivery
-- GitOps — Desired-state deployment management
-- Prometheus — Metrics collection
-- Grafana — Monitoring dashboards
-- Metrics Server — HPA metrics
-- Siege — Load testing
-- Python / Flask — Application
+- **AWS** — EKS, ECR, VPC, IAM, ALB, EBS
+- **Terraform** — Infrastructure as Code
+- **Docker** — Application containerization
+- **Kubernetes** — Container orchestration
+- **Helm** — Kubernetes application packaging
+- **GitHub Actions** — Continuous Integration
+- **Argo CD** — Continuous Delivery
+- **GitOps** — Desired-state deployment management
+- **Prometheus** — Metrics collection
+- **Grafana** — Monitoring dashboards
+- **Metrics Server** — HPA metrics
+- **Siege** — Load testing
+- **Python / Flask** — Application
 
 ---
 
@@ -170,7 +172,23 @@ The CI workflow:
 6. Updates the Helm image tag in Git.
 7. Commits the new desired state.
 
-Using Git commit SHAs provides immutable image versioning and traceability between application code, ECR images, Git, and EKS.
+Using Git commit SHAs provides traceability between application source code, ECR images, Git desired state, and the version running in EKS.
+
+### CI Pipeline Validation
+
+![GitHub Actions Successful Pipeline](images/github-actions-success.png)
+
+The successful workflow validates the automated path from application code through Docker build, Amazon ECR, and the GitOps desired-state update.
+
+---
+
+## GitHub OIDC & AWS IAM
+
+GitHub Actions authenticates to AWS using OpenID Connect (OIDC) instead of storing long-lived AWS access keys in GitHub.
+
+A dedicated IAM role allows the CI workflow to authenticate to AWS and push application images to Amazon ECR.
+
+This keeps CI permissions separate from Kubernetes deployment responsibilities. GitHub Actions handles the build and registry workflow, while Argo CD owns deployment to EKS.
 
 ---
 
@@ -199,25 +217,49 @@ Argo CD was configured with:
 
 Both Git-based application updates and deliberate Kubernetes drift were tested to validate synchronization and self-healing.
 
+### Argo CD Deployment Validation
+
+![Argo CD Healthy and Synced](images/argocd-healthy-synced.png)
+
+The final application deployment reached **Healthy** and **Synced** status after Argo CD deployed the SHA-versioned application image to EKS.
+
 ---
 
-## Monitoring & Persistent Storage
+## Monitoring & Observability
 
 Prometheus and Grafana provide observability for the EKS environment.
 
-Prometheus collects Kubernetes, node, and workload metrics. Grafana provides dashboards for visualizing cluster and application behavior.
+Prometheus collects Kubernetes, node, and workload metrics. Grafana provides dashboards for visualizing cluster behavior before, during, and after load testing.
 
-Persistent storage for monitoring workloads is provided through the AWS EBS CSI Driver and Kubernetes PersistentVolumes/PersistentVolumeClaims.
+### Grafana — Before Load Testing
+
+![Grafana Kubernetes Dashboard Before Load Test](images/grafana-kubernetes-dashboard-before.png)
+
+### Grafana — After Load Testing
+
+![Grafana Kubernetes Dashboard After Load Test](images/grafana-kubernetes-dashboard-after.png)
+
+These dashboards provide visual evidence of how Kubernetes resources responded as application demand changed.
+
+---
+
+## Persistent Storage
+
+Persistent storage for monitoring workloads is provided through the AWS EBS CSI Driver.
+
+The implementation uses Kubernetes PersistentVolumes and PersistentVolumeClaims backed by Amazon EBS, allowing monitoring data to persist independently of individual pods.
+
+The EBS CSI Driver uses IAM Roles for Service Accounts (IRSA) to securely interact with AWS storage services.
 
 ---
 
 ## Autoscaling
 
-The environment uses two levels of autoscaling.
+The environment uses two independent levels of autoscaling.
 
 ### Horizontal Pod Autoscaler
 
-The Flask application can scale between:
+HPA controls the number of Flask application pods based on workload demand.
 
 - Minimum replicas: `1`
 - Maximum replicas: `12`
@@ -226,49 +268,57 @@ The Flask application can scale between:
 
 ### Cluster Autoscaler
 
-Cluster Autoscaler dynamically adjusts EKS worker capacity when pods cannot be scheduled.
+Cluster Autoscaler manages worker-node capacity when Kubernetes cannot schedule additional pods.
 
-The node group supports up to `5` worker nodes using `t3.small` instances.
+The EKS node group uses `t3.small` instances and supports up to `5` worker nodes.
 
 ```text
 Application Load Increases
         ↓
-HPA Creates More Pods
+HPA Creates More Flask Pods
         ↓
-Scheduler Places Pods
+Kubernetes Scheduler Places Pods
         ↓
 Additional Capacity Required
         ↓
-Cluster Autoscaler Adds Nodes
+Cluster Autoscaler Adds Worker Nodes
 ```
+
+HPA scales the application workload, while Cluster Autoscaler scales the infrastructure required to run that workload.
 
 ---
 
 ## Load Testing
 
-Siege was used to generate sustained traffic through the public Application Load Balancer.
+Siege was used to generate sustained traffic against the Flask application through the public Application Load Balancer.
 
-Final load test:
+### Final Load Test
 
-- 50 concurrent users
-- 5-minute duration
-- 45,878 successful transactions
-- 0 failed transactions
-- 100% availability
-- 152.63 transactions/second
+- **Concurrent users:** 50
+- **Duration:** 5 minutes
+- **Successful transactions:** 45,878
+- **Failed transactions:** 0
+- **Availability:** 100%
+- **Transaction rate:** 152.63 transactions/second
 
-During testing:
+During the test:
 
 - HPA scaled the Flask application from `1` to `12` pods.
 - Cluster Autoscaler increased EKS worker capacity.
-- Kubernetes distributed application replicas across worker nodes.
-- The environment automatically scaled down after demand decreased.
+- Kubernetes distributed application replicas across available worker nodes.
+- The environment automatically began scaling down after demand decreased.
+
+### Siege Results
+
+![Siege Load Test Results](images/siege-load-test-results.png)
+
+The test demonstrated that the application remained available while Kubernetes dynamically adjusted application and infrastructure capacity.
 
 ---
 
 ## End-to-End CI/CD Validation
 
-The completed V2 pipeline was validated using a visible Flask application change.
+The complete V2 workflow was validated by making a visible change to the Flask application and pushing the change to GitHub.
 
 ```text
 Code Push
@@ -292,7 +342,15 @@ Application Load Balancer
 Updated Flask Application
 ```
 
-The final deployment successfully ran the SHA-versioned image in EKS, reached Healthy/Synced status in Argo CD, and served the updated Flask application through the public ALB.
+The final deployment successfully:
+
+- Triggered GitHub Actions from an application code change.
+- Built and pushed a SHA-tagged Docker image to ECR.
+- Updated the Helm desired state in Git.
+- Triggered Argo CD Auto-Sync.
+- Deployed the new image to EKS.
+- Reached Healthy and Synced status.
+- Served the updated Flask application through the public ALB.
 
 ---
 
@@ -300,56 +358,47 @@ The final deployment successfully ran the SHA-versioned image in EKS, reached He
 
 ### GitHub Actions OIDC Authentication
 
-GitHub Actions initially failed to assume its AWS IAM role because the repository identity in the OIDC token did not match the IAM trust policy.
+**Problem:** GitHub Actions could not assume its AWS IAM role.
 
-The actual OIDC claims were inspected and the IAM trust relationship was updated to match the repository identity.
+**Root Cause:** The repository identity contained in the GitHub OIDC token did not match the identity configured in the IAM trust policy.
+
+**Resolution:** Inspected the actual OIDC claims and updated the Terraform-managed IAM trust relationship.
+
+**Lesson:** OIDC authentication depends on an exact trust relationship between the external identity and AWS IAM.
 
 ### Cluster Autoscaler IRSA
 
-Cluster Autoscaler initially failed AWS authentication because its Kubernetes ServiceAccount did not match the identity configured in the IAM trust relationship.
+**Problem:** Cluster Autoscaler could not interact with the AWS Auto Scaling Group.
 
-The ServiceAccount and IRSA configuration were aligned to restore AWS access.
+**Root Cause:** The Kubernetes ServiceAccount did not match the identity configured in the IAM trust relationship.
 
-### Kubernetes Scheduling Capacity
+**Resolution:** Aligned the ServiceAccount and IRSA configuration.
 
-During a GitOps rolling deployment, a new Flask pod remained Pending.
-
-Investigation showed:
-
-- Two nodes had reached their pod capacity.
-- Two nodes were restricted by topology spread constraints.
-- Cluster Autoscaler had reached the configured four-node maximum.
-
-The node-group maximum was increased to five, allowing Cluster Autoscaler to add capacity. Kubernetes successfully scheduled the new SHA-versioned Flask pods and completed the rolling deployment.
+**Lesson:** Kubernetes ServiceAccount identity and AWS IAM trust configuration must match for IRSA authentication.
 
 ### Prometheus Persistent Storage
 
-Prometheus initially remained Pending because persistent EBS storage was unavailable.
+**Problem:** Prometheus remained Pending when requesting persistent storage.
 
-The AWS EBS CSI Driver, IAM role, and persistent storage configuration were added, allowing Kubernetes to dynamically provision EBS-backed storage.
+**Root Cause:** The EKS cluster did not yet have the required EBS CSI storage integration.
 
----
+**Resolution:** Added the AWS EBS CSI Driver, IAM role, and persistent storage configuration.
 
-## Key Results
+**Lesson:** Stateful Kubernetes workloads require both Kubernetes storage configuration and the underlying cloud storage integration.
 
-The completed project demonstrates:
+### GitOps Deployment Scheduling
 
-- Terraform-managed AWS infrastructure
-- Containerized Flask application
-- Production-style Amazon EKS deployment
-- GitHub Actions CI
-- Secure AWS authentication using OIDC
-- Immutable SHA-based Docker image versioning
-- GitOps-based Continuous Delivery
-- Argo CD Auto-Sync and Self-Healing
-- Kubernetes HPA
-- EKS Cluster Autoscaler
-- Prometheus monitoring
-- Grafana dashboards
-- EBS-backed persistent storage
-- ALB-based public application access
-- Successful load testing with 100% availability
-- End-to-end automated CI/CD deployment
+**Problem:** A new SHA-versioned Flask pod remained Pending during an Argo CD rolling deployment.
+
+**Root Cause:**
+
+- Two nodes had reached their pod capacity.
+- Other nodes were restricted by topology spread constraints.
+- Cluster Autoscaler had reached the configured four-node maximum.
+
+**Resolution:** Increased the EKS node-group maximum to five. Cluster Autoscaler added the required capacity and Kubernetes successfully completed the rolling deployment.
+
+**Lesson:** HPA replica limits, worker-node pod capacity, scheduling constraints, and Cluster Autoscaler limits are independent controls that must work together.
 
 ---
 
@@ -366,6 +415,12 @@ devops-tech-challenge-2-v2/
 ├── helm/
 │   └── tech-challenge-2/
 ├── images/
+│   ├── tech-challenge-2-v2-architecture.png
+│   ├── github-actions-success.png
+│   ├── argocd-healthy-synced.png
+│   ├── grafana-kubernetes-dashboard-before.png
+│   ├── grafana-kubernetes-dashboard-after.png
+│   └── siege-load-test-results.png
 ├── kubernetes/
 ├── terraform/
 ├── Jenkinsfile
@@ -377,10 +432,36 @@ The `Jenkinsfile` is retained as a reference to the original V1 implementation a
 
 ---
 
+## Key Results
+
+The completed V2 project demonstrated:
+
+- Terraform-managed AWS infrastructure
+- Containerized Flask application
+- Amazon EKS orchestration
+- Helm-based Kubernetes deployments
+- GitHub Actions Continuous Integration
+- AWS authentication using GitHub OIDC
+- Git SHA-based Docker image versioning
+- GitOps-based Continuous Delivery
+- Argo CD Auto-Sync and Self-Healing
+- Kubernetes HPA
+- EKS Cluster Autoscaler
+- Prometheus metrics collection
+- Grafana dashboards
+- EBS-backed persistent storage
+- ALB-based public application access
+- 45,878 successful load-test transactions
+- 0 failed load-test transactions
+- 100% availability during the final Siege test
+- Successful end-to-end automated deployment
+
+---
+
 ## Project Outcome
 
-Tech Challenge 2 V2 demonstrates the evolution of a traditional CI/CD pipeline into a GitOps-based cloud deployment architecture.
+Tech Challenge 2 V2 demonstrates the evolution of a traditional Jenkins-based CI/CD pipeline into a GitOps-based cloud deployment architecture.
 
 The final environment integrates Terraform, AWS, Docker, Kubernetes, Helm, GitHub Actions, Argo CD, Prometheus, Grafana, autoscaling, persistent storage, and load testing into a single end-to-end DevOps platform.
 
-The project provided hands-on experience designing, automating, monitoring, scaling, and troubleshooting a Kubernetes-based application running on AWS.
+The project provided hands-on experience designing, automating, monitoring, scaling, and troubleshooting a Kubernetes application running on AWS.
